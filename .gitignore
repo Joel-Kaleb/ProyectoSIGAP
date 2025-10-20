@@ -1,0 +1,31 @@
+# ------------------------------------
+# 1. SECRETOS Y CONFIGURACIÓN LOCAL
+# ------------------------------------
+.env
+
+# ------------------------------------
+# 2. ENTORNO VIRTUAL
+# ------------------------------------
+/venv/
+
+# ------------------------------------
+# 3. ARCHIVOS GENERADOS/TEMPORALES
+# ------------------------------------
+# Ignorar cachés y binarios de Python
+__pycache__/
+*.pyc
+
+# Ignorar base de datos local (solo si usas SQLite)
+db.sqlite3
+
+# Ignorar archivos del sistema de VSCode
+.vscode/
+
+# Ignorar archivos temporales (si usas Mac/Linux)
+.DS_Store
+
+# ------------------------------------
+# 4. MEDIA Y STATIC FILES
+# ------------------------------------
+# Ignora la carpeta donde se almacenan los archivos cargados por los usuarios
+/media/
