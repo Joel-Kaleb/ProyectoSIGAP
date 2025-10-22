@@ -53,7 +53,6 @@ class Prorroga(models.Model):
 # ====================================================================
 
 class Proyecto(models.Model):
-    # Definición de CHOICES para la Modalidad
     MODALIDAD_CHOICES = [
         ('TRABAJO DE INVESTIGACIÓN', 'TRABAJO DE INVESTIGACIÓN'),
         ('MATERIALES EDUCATIVOS', 'MATERIALES EDUCATIVOS'),
@@ -72,15 +71,29 @@ class Proyecto(models.Model):
     formato1 = models.OneToOneField(Formato1, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="DATOS FORMATO 1")
     
     # Atributos del proyecto
+    # 1. MODALIDAD (Mantenido con CHOICES)
     modalidad = models.CharField(max_length=50, choices=MODALIDAD_CHOICES, verbose_name="MODALIDAD")
-    nivel_competencia = models.CharField(max_length=20, verbose_name="VARIANTE DE MODALIDAD")
-    dictamen = models.CharField(max_length=50, verbose_name="DICTAMEN FINAL")
+    
+    # 2. VARIANTE (Cadena de caracteres, el subtipo)
+    variante = models.CharField(
+        max_length=50, 
+        null=True, blank=True, 
+        verbose_name="VARIANTE DE MODALIDAD"
+    )
+
+    # 3. NIVEL DE COMPETENCIA (El campo que guarda las selecciones múltiples)
+    nivel_competencia = models.CharField(
+        max_length=30, # Suficiente para "INTERMEDIO, AVANZADO"
+        null=True, blank=True, 
+        verbose_name="MÓDULOS REGISTRADOS"
+    )
+    
+    dictamen = models.CharField(max_length=50, default='PENDIENTE', verbose_name="DICTAMEN FINAL")
     calendario_registro = models.CharField(max_length=10, verbose_name="CALENDARIO")
     
     # URLs de Drive
-    evidencia_url = models.URLField(max_length=500, verbose_name="URL EVIDENCIA PRINCIPAL")
-    protocolo_dictamen_url = models.URLField(max_length=500, verbose_name="URL PROTOCOLO DICTAMINADO")
-    evidencia_adicional_url = models.URLField(max_length=500, null=True, blank=True, verbose_name="URL EVIDENCIA ADICIONAL")
+    evidencia_url = models.URLField(max_length=500, null=True, blank=True, verbose_name="URL EVIDENCIA PRINCIPAL")
+    protocolo_dictamen_url = models.URLField(max_length=500, null=True, blank=True, verbose_name="URL PROTOCOLO DICTAMINADO")
 
     # Relación M:M explícita a través de una tabla intermedia
     participantes = models.ManyToManyField(Alumno, through='Participacion', verbose_name="PARTICIPANTES")
