@@ -1,82 +1,119 @@
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.core.mail import send_mail
+from django.urls import path
+from django.shortcuts import redirect
+from django.utils.html import format_html
 from .models import Proyecto, Formato1, Participacion, Prorroga
-# Importamos modelos de otras apps para los 'inlines'
-from evaluation.models import Evaluaciones 
+from evaluation.models import Evaluaciones
+
 
 # --- Inlines (Formularios anidados dentro de ProyectoAdmin) ---
 
 class ParticipacionInline(admin.TabularInline):
-    """
-    Permite agregar/editar Participantes (Alumnos) directamente 
-    desde la vista de un Proyecto.
-    """
     model = Participacion
-    extra = 1 # Espacios para agregar 1 nuevo participante por defecto
-    autocomplete_fields = ['alumno'] # Mejora la selección de alumnos
+    extra = 1
+    autocomplete_fields = ['alumno']
 
 class ProrrogaInline(admin.TabularInline):
-    """
-    Permite ver y agregar Prórrogas directamente desde 
-    la vista de un Proyecto.
-    """
     model = Prorroga
-    extra = 0 # No mostrar prórrogas vacías por defecto
+    extra = 0
 
 class EvaluacionesInline(admin.TabularInline):
-    """
-    Permite ver el historial de Evaluaciones directamente 
-    desde la vista de un Proyecto.
-    (Importado de la app 'evaluation')
-    """
     model = Evaluaciones
-    extra = 0 # No mostrar evaluaciones vacías
+    extra = 0
     readonly_fields = ('fecha_evaluacion', 'evaluador', 'tipo_revision', 'resolutivo', 'observaciones')
     can_delete = False
 
-# 🚨 SE ELIMINÓ LA CLASE 'Formato1Inline' PORQUE LA RELACIÓN O2O
-# ESTÁ EN EL MODELO 'Proyecto' Y NO EN 'Formato1'.
 
 # --- Registros Principales ---
 
 @admin.register(Proyecto)
 class ProyectoAdmin(admin.ModelAdmin):
-    """
-    Configuración principal para el modelo Proyecto.
-    """
-    list_display = ('folio', 'titulo', 'asesor', 'evaluador', 'modalidad', 'calendario_registro', 'dictamen')
+    list_display = ('folio', 'titulo', 'asesor', 'evaluador', 'modalidad', 'calendario_registro', 'dictamen', 'boton_enviar_correo')
     list_filter = ('modalidad', 'calendario_registro', 'dictamen', 'asesor', 'evaluador')
     search_fields = ('folio', 'titulo', 'asesor__nombre_completo', 'evaluador__nombre_completo', 'participantes__nombre_completo')
     
-    # Aquí conectamos todos los formularios anidados
     inlines = [
         ParticipacionInline,
         ProrrogaInline,
-        EvaluacionesInline 
-        # 🚨 SE ELIMINÓ 'Formato1Inline' DE ESTA LISTA
+        EvaluacionesInline
     ]
     
-    autocomplete_fields = ['asesor', 'evaluador'] # Facilita la asignación
+    autocomplete_fields = ['asesor', 'evaluador']
+
+    # --- Botón personalizado en el panel ---
+    def boton_enviar_correo(self, obj):
+        return format_html(
+            '<a class="button" href="enviar-correo/{}/" '
+            'style="padding:5px 10px; background:#0b6efd; color:white; '
+            'border-radius:6px; text-decoration:none;">📨 Enviar correo</a>',
+            obj.pk
+        )
+    boton_enviar_correo.short_description = "Acción"
+    boton_enviar_correo.allow_tags = True
+
+    # --- URL personalizada ---
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('enviar-correo/<str:folio>/', self.admin_site.admin_view(self.enviar_correo), name='enviar_correo'),
+        ]
+        return custom_urls + urls
+
+    # --- Lógica del envío de correo ---
+    def enviar_correo(self, request, folio):
+        proyecto = Proyecto.objects.get(pk=folio)
+
+        destinatarios = []
+
+        # Correos de asesor y evaluador
+        if proyecto.asesor and proyecto.asesor.correo_electronico:
+            destinatarios.append(proyecto.asesor.correo_electronico)
+        if proyecto.evaluador and proyecto.evaluador.correo_evaluador:
+            destinatarios.append(proyecto.evaluador.correo_evaluador)
+
+        # Correos de alumnos participantes
+        for participacion in proyecto.participacion_set.all():
+            alumno = participacion.alumno
+            if alumno and alumno.correo_electronico:
+                destinatarios.append(alumno.correo_electronico)
+
+        destinatarios = list(set(destinatarios))  # quitar duplicados
+
+        if not destinatarios:
+            messages.error(request, "❌ No hay correos registrados para este proyecto.")
+            return redirect(request.META.get('HTTP_REFERER', 'admin:index'))
+
+        # Mensaje del correo
+        asunto = f"Notificación del Proyecto {proyecto.folio}"
+        mensaje = (
+            f"Estimados participantes,\n\n"
+            f"Este es un aviso relacionado con el proyecto '{proyecto.titulo}' "
+            f"(folio: {proyecto.folio}).\n\n"
+            f"Por favor revisen su cuenta SIGAP para más información.\n\n"
+            f"Atentamente,\nComité de Evaluación"
+        )
+
+        send_mail(
+            subject=asunto,
+            message=mensaje,
+            from_email=None,
+            recipient_list=destinatarios,
+            fail_silently=False,
+        )
+
+        messages.success(request, f"✅ Correo enviado correctamente a los participantes del proyecto {proyecto.folio}.")
+        return redirect(request.META.get('HTTP_REFERER', 'admin:index'))
+
 
 @admin.register(Participacion)
 class ParticipacionAdmin(admin.ModelAdmin):
-    """
-    Registro individual del modelo Participacion.
-    Útil para ver todas las participaciones de golpe.
-    """
     list_display = ('proyecto', 'alumno', 'es_representante')
     list_filter = ('es_representante',)
     autocomplete_fields = ['proyecto', 'alumno']
 
+
 @admin.register(Formato1)
 class Formato1Admin(admin.ModelAdmin):
-    """
-    Registro individual para Formato1.
-    No se puede usar como 'inline' porque la relación OneToOne
-    está definida en 'Proyecto' (apuntando a Formato1) y no
-    al revés.
-    """
     list_display = ('folio', 'resumen')
     search_fields = ('folio', 'resumen', 'introduccion')
-
-# No registramos Prorroga por separado, 
-# ya que es más intuitivo manejarlo desde el Proyecto.
