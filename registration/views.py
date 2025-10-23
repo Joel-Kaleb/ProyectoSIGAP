@@ -9,7 +9,7 @@ from decouple import config
 
 # Importar Modelos
 from projects.models import Proyecto, Formato1, Participacion
-from people.models import Alumno, Asesor, Evaluador
+from people.models import Alumno, Asesor
 
 
 logger = logging.getLogger(__name__)

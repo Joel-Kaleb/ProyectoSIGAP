@@ -54,11 +54,11 @@ class Prorroga(models.Model):
 
 class Proyecto(models.Model):
     MODALIDAD_CHOICES = [
-        ('TRABAJO DE INVESTIGACIÓN', 'TRABAJO DE INVESTIGACIÓN'),
+        ('TRABAJO DE INVESTIGACION', 'TRABAJO DE INVESTIGACION'),
         ('MATERIALES EDUCATIVOS', 'MATERIALES EDUCATIVOS'),
         ('PROTOTIPO', 'PROTOTIPO'),
         ('REPORTE', 'REPORTE'),
-        ('VINCULACIÓN SOCIAL', 'PROYECTOS DE VINCULACIÓN SOCIAL'),
+        ('VINCULACION SOCIAL', 'VINCULACION SOCIAL'),
     ]
     
     # PK: Folio compuesto (ej. 218466066-2025B)
