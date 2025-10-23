@@ -9,7 +9,6 @@ from people.models import Alumno, Asesor, Evaluador
 
 class Formato1(models.Model):
     """Contiene los datos de la documentación inicial del proyecto."""
-    # PK: El folio es la PK para asegurar la relación 1:1 con Proyecto
     folio = models.CharField(max_length=50, primary_key=True, verbose_name="FOLIO PROYECTO") 
     introduccion = models.TextField(verbose_name="INTRODUCCIÓN")
     justificacion = models.TextField(verbose_name="JUSTIFICACIÓN")
@@ -20,6 +19,19 @@ class Formato1(models.Model):
         verbose_name = "Formato Inicial"
         verbose_name_plural = "Formatos Iniciales"
     
+    def save(self, *args, **kwargs):
+        if self.folio:
+            self.folio = self.folio.upper()
+        if self.introduccion:
+            self.introduccion = self.introduccion.upper()
+        if self.justificacion:
+            self.justificacion = self.justificacion.upper()
+        if self.objetivo:
+            self.objetivo = self.objetivo.upper()
+        if self.resumen:
+            self.resumen = self.resumen.upper()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"Formato para Folio: {self.folio}"
 
@@ -30,20 +42,24 @@ class Formato1(models.Model):
 class Prorroga(models.Model):
     """Registra las solicitudes de prórroga para un proyecto."""
     id_prorroga = models.AutoField(primary_key=True, verbose_name="ID DE PRÓRROGA")
-    
-    # FK: Proyecto al que se aplica la prórroga
     proyecto = models.ForeignKey(
-        'Proyecto', # Se usa string porque 'Proyecto' aún no está definido
+        'Proyecto',
         on_delete=models.CASCADE,
         verbose_name="PROYECTO"
     )
-    
     justificacion = models.TextField(verbose_name="JUSTIFICACIÓN DE PRÓRROGA")
     calendario_presentacion = models.CharField(max_length=10, verbose_name="CALENDARIO PARA PRESENTACIÓN")
 
     class Meta:
         verbose_name = "Prórroga"
         verbose_name_plural = "Prórrogas"
+
+    def save(self, *args, **kwargs):
+        if self.justificacion:
+            self.justificacion = self.justificacion.upper()
+        if self.calendario_presentacion:
+            self.calendario_presentacion = self.calendario_presentacion.upper()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Prórroga {self.id_prorroga} para {self.proyecto.folio}"
@@ -61,47 +77,39 @@ class Proyecto(models.Model):
         ('VINCULACION SOCIAL', 'VINCULACION SOCIAL'),
     ]
     
-    # PK: Folio compuesto (ej. 218466066-2025B)
     folio = models.CharField(max_length=50, primary_key=True, verbose_name="FOLIO DE PROYECTO")
     titulo = models.CharField(max_length=255, verbose_name="TÍTULO DEL PROYECTO")
-    
-    # Claves Foráneas (1:N y 1:1)
     asesor = models.ForeignKey(Asesor, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="ASESOR ASIGNADO")
     evaluador = models.ForeignKey(Evaluador, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="EVALUADOR ASIGNADO")
     formato1 = models.OneToOneField(Formato1, on_delete=models.SET_NULL, null=True, blank=True, verbose_name="DATOS FORMATO 1")
-    
-    # Atributos del proyecto
-    # 1. MODALIDAD (Mantenido con CHOICES)
     modalidad = models.CharField(max_length=50, choices=MODALIDAD_CHOICES, verbose_name="MODALIDAD")
-    
-    # 2. VARIANTE (Cadena de caracteres, el subtipo)
-    variante = models.CharField(
-        max_length=50, 
-        null=True, blank=True, 
-        verbose_name="VARIANTE DE MODALIDAD"
-    )
-
-    # 3. NIVEL DE COMPETENCIA (El campo que guarda las selecciones múltiples)
-    nivel_competencia = models.CharField(
-        max_length=30, # Suficiente para "INTERMEDIO, AVANZADO"
-        null=True, blank=True, 
-        verbose_name="MÓDULOS REGISTRADOS"
-    )
-    
+    variante = models.CharField(max_length=50, null=True, blank=True, verbose_name="VARIANTE DE MODALIDAD")
+    nivel_competencia = models.CharField(max_length=30, null=True, blank=True, verbose_name="MÓDULOS REGISTRADOS")
     dictamen = models.CharField(max_length=50, default='PENDIENTE', verbose_name="DICTAMEN FINAL")
     calendario_registro = models.CharField(max_length=10, verbose_name="CALENDARIO")
-    
-    # URLs de Drive
     evidencia_url = models.URLField(max_length=500, null=True, blank=True, verbose_name="URL EVIDENCIA PRINCIPAL")
     protocolo_dictamen_url = models.URLField(max_length=500, null=True, blank=True, verbose_name="URL PROTOCOLO DICTAMINADO")
-
-    # Relación M:M explícita a través de una tabla intermedia
     participantes = models.ManyToManyField(Alumno, through='Participacion', verbose_name="PARTICIPANTES")
 
     class Meta:
         verbose_name = "Proyecto Modular"
         verbose_name_plural = "Proyectos Modulares"
         
+    def save(self, *args, **kwargs):
+        if self.folio:
+            self.folio = self.folio.upper()
+        if self.titulo:
+            self.titulo = self.titulo.upper()
+        if self.variante:
+            self.variante = self.variante.upper()
+        if self.nivel_competencia:
+            self.nivel_competencia = self.nivel_competencia.upper()
+        if self.dictamen:
+            self.dictamen = self.dictamen.upper()
+        if self.calendario_registro:
+            self.calendario_registro = self.calendario_registro.upper()
+        super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.folio} - {self.titulo}"
 
@@ -111,11 +119,8 @@ class Proyecto(models.Model):
 
 class Participacion(models.Model):
     """Tabla de unión que resuelve la relación M:M entre Proyecto y Alumno."""
-    # Claves Compuestas del M:M
     proyecto = models.ForeignKey(Proyecto, on_delete=models.CASCADE)
     alumno = models.ForeignKey(Alumno, on_delete=models.CASCADE)
-    
-    # Atributo propio de la relación (el rol de representante)
     es_representante = models.BooleanField(default=False, verbose_name="ES REPRESENTANTE")
 
     class Meta:
@@ -124,5 +129,5 @@ class Participacion(models.Model):
         verbose_name_plural = "Participaciones en Proyectos"
 
     def __str__(self):
-        rol = "Representante" if self.es_representante else "Participante"
+        rol = "REPRESENTANTE" if self.es_representante else "PARTICIPANTE"
         return f"{self.proyecto.folio} - {self.alumno.codigo_estudiante} ({rol})"

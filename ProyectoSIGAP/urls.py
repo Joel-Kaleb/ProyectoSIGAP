@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
+    path('jet/', include('jet.urls', 'jet')), # Django JET URLS (intefaz del panel de administración :p)
     path('admin/', admin.site.urls),
     path('registro/', include('registration.urls')),
 ]

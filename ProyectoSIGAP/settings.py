@@ -32,6 +32,7 @@ ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='').split(',')
 # Application definition
 
 INSTALLED_APPS = [
+    'jet',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,6 +44,30 @@ INSTALLED_APPS = [
     'projects',
     'registration',
 ]
+# Configuración opcional de Jet Reboot
+JET_THEMES = [
+    {
+        'theme': 'default', # theme folder name
+        'color': '#758A93', # color of the theme's button in user menu
+        'title': 'Default' # theme title
+    },
+    {
+        
+        'color': '#3C3D37',
+        'title': 'Light Green'
+    },
+    {
+        'theme': 'light-blue',
+        'color': '#123458',
+        'title': 'Light Blue'
+    },
+    {
+        'theme': 'light-gray',
+        'color': '#222',
+        'title': 'Light Gray'
+    }
+] # Opciones: 'light-blue', 'light-gray', 'dark-gray', etc.
+JET_SIDE_MENU_COMPACT = True
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

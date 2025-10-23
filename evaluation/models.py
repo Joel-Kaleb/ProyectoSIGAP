@@ -1,6 +1,6 @@
 from django.db import models
-from projects.models import Proyecto # Importar el proyecto a evaluar
-from people.models import Evaluador # Importar quién evalúa
+from projects.models import Proyecto  # Importar el proyecto a evaluar
+from people.models import Evaluador   # Importar quién evalúa
 
 class Evaluaciones(models.Model):
     """
@@ -11,13 +11,12 @@ class Evaluaciones(models.Model):
     id_evaluacion = models.AutoField(primary_key=True, verbose_name="ID DE EVALUACIÓN")
     
     # Claves Foráneas (Relaciones 1:N)
-    # 1. ¿Qué proyecto fue evaluado?
     proyecto = models.ForeignKey(
         Proyecto, 
         on_delete=models.CASCADE, 
         verbose_name="PROYECTO EVALUADO"
     )
-    # 2. ¿Quién evaluó?
+
     evaluador = models.ForeignKey(
         Evaluador, 
         on_delete=models.SET_NULL, 
@@ -33,7 +32,7 @@ class Evaluaciones(models.Model):
     REVISION_CHOICES = [
         ('FORMA', 'Revisión de Forma'),
         ('FONDO', 'Revisión de Fondo'),
-        ('FINAL', 'Dictamen Final'), # Para la presentación final
+        ('FINAL', 'Dictamen Final'),
     ]
     
     tipo_revision = models.CharField(
@@ -62,8 +61,19 @@ class Evaluaciones(models.Model):
     class Meta:
         verbose_name = "Evaluación Histórica"
         verbose_name_plural = "Evaluaciones Históricas"
-        # Asegura que las evaluaciones se ordenen de la más reciente a la más antigua
-        ordering = ['-fecha_evaluacion'] 
+        ordering = ['-fecha_evaluacion']
+
+    def save(self, *args, **kwargs):
+        """
+        Convierte automáticamente a MAYÚSCULAS todos los CharField y TextField
+        antes de guardar el registro.
+        """
+        for field in self._meta.fields:
+            if isinstance(field, models.CharField) or isinstance(field, models.TextField):
+                valor = getattr(self, field.name)
+                if isinstance(valor, str):
+                    setattr(self, field.name, valor.upper())
+        super().save(*args, **kwargs)
 
     def __str__(self):
-        return f"Evaluación {self.id_evaluacion} - {self.proyecto.folio} ({self.tipo_revision})"
+        return f"EVALUACIÓN {self.id_evaluacion} - {self.proyecto.folio} ({self.tipo_revision})"

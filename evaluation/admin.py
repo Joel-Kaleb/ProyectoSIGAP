@@ -1,5 +1,9 @@
 from django.contrib import admin
 from .models import Evaluaciones
+admin.site.site_header = "Panel Administrativo QFB"
+admin.site.site_title = "QFB| Administración"
+admin.site.index_title = "Gestión de Proyectos Modulares"
+admin.site.site_url = None
 
 @admin.register(Evaluaciones)
 class EvaluacionesAdmin(admin.ModelAdmin):
