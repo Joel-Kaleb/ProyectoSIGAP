@@ -102,9 +102,6 @@ def importar_proyectos_view(request):
             # 2. Creamos dinámicamente las listas de búsqueda
             #    basado en las columnas que *realmente* existen.
             
-            # Buscará 'evidencia', 'evidencia.1', ... 'evidencia.N'
-            DYNAMIC_PROTOCOLO_KEYS = [key for key in unique_keys if key.startswith('evidencia')] + ['sube_tu_formato']
-            
             # Buscará 'variante', 'variante.1', ... 'variante.N'
             DYNAMIC_VARIANTE_KEYS = [key for key in unique_keys if key.startswith('variante')]
 
@@ -164,14 +161,6 @@ def importar_proyectos_view(request):
                         # --- LÓGICA PARA 'evidencia_url' (Principal) ---
                         # Tomamos el valor directamente de 'sube_tu_evidencia'
                         evidencia_url_principal = get_clean_value(row, 'sube_tu_evidencia')
-
-                        evidencia_url_protocolo = None
-                        for col_name in DYNAMIC_PROTOCOLO_KEYS:
-                            url = get_clean_value(row, col_name)
-                            if url:
-                                evidencia_url_protocolo = url
-                                break
-
                         # 4.5 BUSCAR LA VARIANTE (EN MÚLTIPLES COLUMNAS)
                         
                         valor_variante_encontrado = None
@@ -200,7 +189,7 @@ def importar_proyectos_view(request):
                                 
                                 # --- ASIGNACIÓN CORREGIDA ---
                                 'evidencia_url': evidencia_url_principal,
-                                'protocolo_dictamen_url': evidencia_url_protocolo,
+                                'protocolo_dictamen_url': get_clean_value(row, 'sube_tu_formato'),
                             }
                         )
                         
