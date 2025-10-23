@@ -30,10 +30,17 @@ def get_clean_value(row, key):
     
     # 1. Manejo de ambigüedad (si el valor es un array/Series) y de nulos
     if isinstance(value, pd.Series):
-        if not value.empty:
-            value = value.iloc[0]
-        else:
-            return None
+        # --- INICIO DE CORRECCIÓN ---
+        # Si es una Serie (claves duplicadas), buscar el primer valor NO NULO
+        found_value = None
+        for v in value:
+            # strip() para manejar strings con solo espacios en blanco
+            if pd.notna(v) and (not isinstance(v, str) or v.strip() != ""):
+                found_value = v
+                break # Tomar el primer valor no nulo
+        
+        value = found_value # Ahora 'value' es un valor simple (o None)
+        # --- FIN DE CORRECCIÓN ---
     
     if pd.isna(value) or value is None:
         return None
@@ -47,7 +54,6 @@ def get_clean_value(row, key):
         return str(value).strip()
     except Exception:
         return str(value).strip() if value is not None else None
-
 
 # --- Vista Principal ---
 @user_passes_test(is_admin)
@@ -80,18 +86,28 @@ def importar_proyectos_view(request):
             registros_exitosos = 0
             registros_fallidos = 0
             
-            # 🚨 CORRECCIÓN CLAVE: NORMALIZACIÓN QUE ELIMINA PARÉNTESIS Y GUIONES BAJOS PROBLEMÁTICOS 🚨
+            # NORMALIZACIÓN
             df.columns = (
                 df.columns.str.strip().str.lower()
                 .str.replace('(', '', regex=False).str.replace(')', '', regex=False) # Eliminar paréntesis
-                .str.replace('á', 'a').str.replace('é', 'e').str.replace('í', 'i').str.replace('ó', 'o').str.replace('ú', 'u').str.replace('ñ', 'n')
+                .str.replace('á', 'a').str.replace('é', 'e').str.replace('í', 'i').str.replace('ó', 'o').str.replace('ú', 'u')
+                .str.replace('ñ', 'n')
                 .str.replace(' ', '_') # Reemplazar espacios por guiones bajos (ÚLTIMO PASO)
             )
             
-            # Lista de todas las posibles columnas de evidencia (Normalizadas)
-            # Nota: Los encabezados de evidencia sin número (ej. "SUBE TU FORMATO") están definidos abajo.
-            COLUMNAS_DE_EVIDENCIA = [f'evidencia.{i}' for i in range(10)] + ['evidencia', 'sube_tu_evidencia']
+            # 1. Obtenemos una lista de claves de columna ÚNICAS, 
+            #    pero manteniendo el orden.
+            unique_keys = list(dict.fromkeys(df.columns))
+
+            # 2. Creamos dinámicamente las listas de búsqueda
+            #    basado en las columnas que *realmente* existen.
             
+            # Buscará 'evidencia', 'evidencia.1', ... 'evidencia.N'
+            DYNAMIC_PROTOCOLO_KEYS = [key for key in unique_keys if key.startswith('evidencia')] + ['sube_tu_formato']
+            
+            # Buscará 'variante', 'variante.1', ... 'variante.N'
+            DYNAMIC_VARIANTE_KEYS = [key for key in unique_keys if key.startswith('variante')]
+
             with transaction.atomic():
                 for index, row in df.iterrows():
                     
@@ -143,15 +159,30 @@ def importar_proyectos_view(request):
                             }
                         )
                         
-                        # 4. BUSCAR LA URL DE EVIDENCIA PRINCIPAL
-                        evidencia_url_principal = None
-                        for col_name in COLUMNAS_DE_EVIDENCIA:
+                        # 4. BUSCAR LAS URLs DE FORMA SEPARADA
+
+                        # --- LÓGICA PARA 'evidencia_url' (Principal) ---
+                        # Tomamos el valor directamente de 'sube_tu_evidencia'
+                        evidencia_url_principal = get_clean_value(row, 'sube_tu_evidencia')
+
+                        evidencia_url_protocolo = None
+                        for col_name in DYNAMIC_PROTOCOLO_KEYS:
                             url = get_clean_value(row, col_name)
                             if url:
-                                evidencia_url_principal = url
+                                evidencia_url_protocolo = url
                                 break
+
+                        # 4.5 BUSCAR LA VARIANTE (EN MÚLTIPLES COLUMNAS)
                         
-                        # 5. CREAR/ACTUALIZAR PROYECTO (MAESTRO)
+                        valor_variante_encontrado = None
+                        for col_name in DYNAMIC_VARIANTE_KEYS:
+                            valor = get_clean_value(row, col_name)
+                            if valor:
+                                valor_variante_encontrado = valor
+                                break
+
+                        
+                        # 5. CREAR/ACTUALIZAR PROYECTO (MAESTRO) - CORREGIDO
                         proyecto_obj, _ = Proyecto.objects.update_or_create(
                             folio=folio_proyecto,
                             defaults={
@@ -161,14 +192,15 @@ def importar_proyectos_view(request):
                                 
                                 # Mapeo: Nivel y Variante
                                 'nivel_competencia': get_clean_value(row, 'nivel_de_competencias'), # Módulos Registrados
-                                'variante': get_clean_value(row, 'variante'),
+                                'variante': valor_variante_encontrado,
                                 
                                 'calendario_registro': calendario_actual,
                                 'asesor': asesor_obj,
                                 'formato1': formato1_obj,
                                 
+                                # --- ASIGNACIÓN CORREGIDA ---
                                 'evidencia_url': evidencia_url_principal,
-                                'protocolo_dictamen_url': get_clean_value(row, 'sube_tu_formato'),         
+                                'protocolo_dictamen_url': evidencia_url_protocolo,
                             }
                         )
                         
