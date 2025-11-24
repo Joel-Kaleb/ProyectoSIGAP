@@ -12,7 +12,7 @@ from evaluation.models import Evaluaciones
 class ParticipacionInline(admin.TabularInline):
     model = Participacion
     extra = 1
-    autocomplete_fields = ['alumno']
+    #autocomplete_fields = ['alumno']
 
 class ProrrogaInline(admin.TabularInline):
     model = Prorroga
@@ -39,7 +39,8 @@ class ProyectoAdmin(admin.ModelAdmin):
         EvaluacionesInline
     ]
     
-    autocomplete_fields = ['asesor', 'evaluador']
+    #autocomplete_fields = ['asesor', 'evaluador']
+    #raw_id_fields = ('asesor', 'evaluador')
 
     # --- Botón personalizado en el panel ---
     def boton_enviar_correo(self, obj):
