@@ -105,7 +105,7 @@ WSGI_APPLICATION = 'ProyectoSIGAP.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': config('DB_ENGINE'),
-        'NAME': config('DB_NAME'),
+        'NAME': config('SIGAP_DB_NAME'),
         'USER': config('DB_USER'),
         'PASSWORD': config('DB_PASSWORD'),
         'HOST': config('DB_HOST'),
