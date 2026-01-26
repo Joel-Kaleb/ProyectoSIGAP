@@ -221,5 +221,20 @@ class ParticipacionAdmin(admin.ModelAdmin):
 
 @admin.register(Formato1)
 class Formato1Admin(admin.ModelAdmin):
-    list_display = ('folio', 'resumen')
-    search_fields = ('folio', 'resumen', 'introduccion')
+    # 1. Agregamos 'ver_titulo_proyecto' a la lista
+    list_display = ('folio', 'ver_titulo_proyecto', 'resumen')
+    
+    # Buscador para que también busque por el título del proyecto relacionado
+    search_fields = ('folio', 'resumen', 'introduccion', 'proyecto__titulo')
+
+    def ver_titulo_proyecto(self, obj):
+        
+        if hasattr(obj, 'proyecto'):
+            return obj.proyecto.titulo
+        return "⚠️ Huérfano"
+
+    # 3. Nombre de la columna
+    ver_titulo_proyecto.short_description = "Título del Proyecto"
+    
+    # Ordena la columna por título al darle click
+    ver_titulo_proyecto.admin_order_field = 'proyecto__titulo'
