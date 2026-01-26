@@ -16,9 +16,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.auth import views as auth_views
 
 urlpatterns = [
     path('jet/', include('jet.urls', 'jet')), # Django JET URLS (intefaz del panel de administración :p)
+    path('admin/logout/', auth_views.LogoutView.as_view(next_page='/admin/login/'), name='admin_logout'),
     path('admin/', admin.site.urls),
     path('registro/', include('registration.urls')),
 ]
