@@ -86,66 +86,59 @@ def importar_proyectos_view(request):
             registros_exitosos = 0
             registros_fallidos = 0
             
-            # NORMALIZACIÓN
+            # NORMALIZACIÓN (Igual que antes)
             df.columns = (
                 df.columns.str.strip().str.lower()
-                .str.replace('(', '', regex=False).str.replace(')', '', regex=False) # Eliminar paréntesis
+                .str.replace('(', '', regex=False).str.replace(')', '', regex=False)
                 .str.replace('á', 'a').str.replace('é', 'e').str.replace('í', 'i').str.replace('ó', 'o').str.replace('ú', 'u')
                 .str.replace('ñ', 'n')
-                .str.replace(' ', '_') # Reemplazar espacios por guiones bajos (ÚLTIMO PASO)
+                .str.replace(' ', '_')
             )
             
-            # 1. Obtenemos una lista de claves de columna ÚNICAS, 
-            #    pero manteniendo el orden.
             unique_keys = list(dict.fromkeys(df.columns))
-
-            # 2. Creamos dinámicamente las listas de búsqueda
-            #    basado en las columnas que *realmente* existen.
-            
-            # Buscará 'variante', 'variante.1', ... 'variante.N'
             DYNAMIC_VARIANTE_KEYS = [key for key in unique_keys if key.startswith('variante')]
 
-            with transaction.atomic():
-                for index, row in df.iterrows():
-                    
-                    # 1. IDENTIFICACIÓN CLAVE (REPRESENTANTE)
-                    # CLAVE CORREGIDA: Buscamos la clave sin los paréntesis, que ahora fue simplificada a:
-                    codigo_representante = get_clean_value(row, 'codigo_de_integrante_1representante')
-                    
-                    if not codigo_representante:
-                        logger.warning(f"Fila {index + 2}: Salto - Código de representante vacío.")
-                        registros_fallidos += 1
-                        continue
+            # ---------------------------------------------------------------------
+            # CAMBIO PRINCIPAL: Quitamos el transaction.atomic() de aquí afuera
+            # ---------------------------------------------------------------------
+            
+            for index, row in df.iterrows():
+                folio_proyecto = "Desconocido" # Para el log en caso de error temprano
+                
+                try:
+                    # -------------------------------------------------------------
+                    # NUEVA UBICACIÓN: La transacción ahora protege SOLO esta fila
+                    # -------------------------------------------------------------
+                    with transaction.atomic():
+                        
+                        # 1. IDENTIFICACIÓN CLAVE (Igual)
+                        codigo_representante = get_clean_value(row, 'codigo_de_integrante_1representante')
+                        
+                        if not codigo_representante:
+                            logger.warning(f"Fila {index + 2}: Salto - Código de representante vacío.")
+                            registros_fallidos += 1
+                            continue 
 
-                    folio_proyecto = f"{codigo_representante}-{calendario_actual}" 
-                    
-                    try:
-                        # 2. PROCESAR ASESOR
+                        folio_proyecto = f"{codigo_representante}-{calendario_actual}" 
+                        
+                        # ... (Paso 2: ASESOR - Código idéntico) ...
                         nombre_asesor = get_clean_value(row, 'nombre_del_asesor')
                         correo_asesor = get_clean_value(row, 'correo_institucional_del_asesora')
-                        
-                        # --- INICIO DE CORRECCIÓN (Versión Definitiva) ---
-                        
-                        # Leemos la clave ÚNICA Y VERDADERA que viene del Excel
                         codigo_asesor_excel = get_clean_value(row, 'codigo_del_asesor')
 
-                        # VALIDACIÓN: Esta es la clave principal, NO puede estar vacía
                         if not codigo_asesor_excel:
-                            logger.warning(f"Fila {index + 2} (Folio: {folio_proyecto}): Salto - 'Codigo del asesor' está vacío. No se puede procesar.")
-                            registros_fallidos += 1
-                            continue # Saltar esta fila
+                            # Lanzamos excepción manual para que el 'except' de abajo lo cuente
+                            raise ValueError("'Codigo del asesor' está vacío.")
 
-                        # LÓGICA CORREGIDA: Usar el CÓDIGO DEL EXCEL como clave única
                         asesor_obj, _ = Asesor.objects.update_or_create(
-                            codigo_asesor=codigo_asesor_excel,  # <-- CAMBIO: Clave única real
+                            codigo_asesor=codigo_asesor_excel,
                             defaults={
                                 'nombre_completo': nombre_asesor,
                                 'correo_electronico': correo_asesor
-                                # Ya no generamos ningún código hash, usamos el que viene del Excel
                             }
                         )
 
-                        # 3. PROCESAR FORMATO1 
+                        # ... (Paso 3: FORMATO1 - Código idéntico) ...
                         formato1_obj, _ = Formato1.objects.update_or_create(
                             folio=folio_proyecto,
                             defaults={
@@ -156,13 +149,8 @@ def importar_proyectos_view(request):
                             }
                         )
                         
-                        # 4. BUSCAR LAS URLs DE FORMA SEPARADA
-
-                        # --- LÓGICA PARA 'evidencia_url' (Principal) ---
-                        # Tomamos el valor directamente de 'sube_tu_evidencia'
+                        # ... (Paso 4 y 5: PROYECTO - Código idéntico) ...
                         evidencia_url_principal = get_clean_value(row, 'sube_tu_evidencia')
-                        # 4.5 BUSCAR LA VARIANTE (EN MÚLTIPLES COLUMNAS)
-                        
                         valor_variante_encontrado = None
                         for col_name in DYNAMIC_VARIANTE_KEYS:
                             valor = get_clean_value(row, col_name)
@@ -170,47 +158,47 @@ def importar_proyectos_view(request):
                                 valor_variante_encontrado = valor
                                 break
 
-                        
-                        # 5. CREAR/ACTUALIZAR PROYECTO (MAESTRO) - CORREGIDO
                         proyecto_obj, _ = Proyecto.objects.update_or_create(
                             folio=folio_proyecto,
                             defaults={
-                                # Título y Modalidad
                                 'titulo': get_clean_value(row, 'titulo_del_proyecto'),
                                 'modalidad': get_clean_value(row, 'modalidad'),
-                                
-                                # Mapeo: Nivel y Variante
-                                'nivel_competencia': get_clean_value(row, 'nivel_de_competencias'), # Módulos Registrados
+                                'nivel_competencia': get_clean_value(row, 'nivel_de_competencias'),
                                 'variante': valor_variante_encontrado,
-                                
                                 'calendario_registro': calendario_actual,
                                 'asesor': asesor_obj,
                                 'formato1': formato1_obj,
-                                
-                                # --- ASIGNACIÓN CORREGIDA ---
                                 'evidencia_url': evidencia_url_principal,
                                 'protocolo_dictamen_url': get_clean_value(row, 'sube_tu_formato'),
                             }
                         )
                         
-                        # 6. PROCESAR INTEGRANTES Y PARTICIPACIÓN
+                        # 6. PROCESAR INTEGRANTES (MODO ESTRICTO 👮‍♂️)
                         integrantes_data = []
                         for i in range(1, 4):
-                            
                             if i == 1:
-                                # Integrante 1 (Representante) - Claves limpias
                                 codigo_key = 'codigo_de_integrante_1representante'
                                 nombre_key = 'nombre_de_integrante_1representante'
                                 correo = get_clean_value(row, 'direccion_de_correo_electronico')
                             else:
-                                # Integrantes 2 y 3 - Claves genéricas
                                 codigo_key = f'codigo_de_integrante_{i}'
                                 nombre_key = f'nombre_de_integrante_{i}'
                                 correo = None
 
+                            # Obtenemos los valores limpios
                             codigo = get_clean_value(row, codigo_key)
                             nombre = get_clean_value(row, nombre_key)
                             
+                            # --- VALIDACIÓN DE INTEGRIDAD ---
+                            # Si hay Nombre pero NO hay Código (o viceversa), es un error del alumno.
+                            if nombre and not codigo:
+                                raise ValueError(f"El integrante {i} tiene Nombre ({nombre}) pero su Código está vacío o inválido.")
+                            
+                            if codigo and not nombre:
+                                raise ValueError(f"El integrante {i} tiene Código ({codigo}) pero no tiene Nombre.")
+                            # -------------------------------
+
+                            # Si ambos existen, lo agregamos
                             if codigo and nombre:
                                 integrantes_data.append({
                                     'codigo': codigo,
@@ -219,8 +207,15 @@ def importar_proyectos_view(request):
                                     'correo': correo
                                 })
                         
-                        # 7. Guardar Alumnos y Participación
+                        # Si no quedó nadie (ni el representante), error fatal.
+                        if not integrantes_data:
+                            raise ValueError("No se encontraron integrantes válidos para este proyecto.")
+
+                        # 7. Guardar Alumnos... (el resto sigue igual)
+
+                        # 7. Guardar Alumnos
                         for data in integrantes_data:
+                            # Si esto falla (ej. código muy largo), el atomic hará rollback del Proyecto
                             alumno_obj, _ = Alumno.objects.update_or_create(
                                 codigo_estudiante=data['codigo'],
                                 defaults={
@@ -228,23 +223,25 @@ def importar_proyectos_view(request):
                                     'correo_electronico': data['correo']
                                 }
                             )
-                            # Crear la relación de participación
                             Participacion.objects.update_or_create(
                                 proyecto=proyecto_obj,
                                 alumno=alumno_obj,
                                 defaults={'es_representante': data['es_representante']}
                             )
 
+                        # Si llegamos aquí sin errores, el atomic hace COMMIT automático de esta fila
                         registros_exitosos += 1
 
-                    except Exception as e:
-                        registros_fallidos += 1
-                        logger.error(f"Fila {index + 2} (Folio: {folio_proyecto}): Fallo al guardar. Error: {e}")
+                except Exception as e:
+                    # Al entrar aquí, el 'with transaction.atomic()' ya hizo ROLLBACK.
+                    # El proyecto y el formato creados hace unos milisegundos han desaparecido.
+                    registros_fallidos += 1
+                    logger.error(f"Fila {index + 2} (Folio: {folio_proyecto}): Fallo al guardar. Se revirtieron los cambios. Error: {e}")
 
             context['success_message'] = f"Importación completada. Registros exitosos: {registros_exitosos}. Fallidos: {registros_fallidos}."
         
         except Exception as e:
-            context['error'] = f"Ocurrió un error inesperado durante la importación. Detalle: {e}"
-            logger.exception("Error fatal en la importación de proyectos.")
+            context['error'] = f"Ocurrió un error general: {e}"
+            logger.exception("Error fatal.")
             
     return render(request, 'importar_proyectos.html', context)
