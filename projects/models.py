@@ -131,3 +131,12 @@ class Participacion(models.Model):
     def __str__(self):
         rol = "REPRESENTANTE" if self.es_representante else "PARTICIPANTE"
         return f"{self.proyecto.folio} - {self.alumno.codigo_estudiante} ({rol})"
+
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
+
+@receiver(post_delete, sender=Proyecto)
+def eliminar_formato_huérfano(sender, instance, **kwargs):
+    # Si el proyecto tenía un formato, bórralo también.
+    if instance.formato1:
+        instance.formato1.delete()
